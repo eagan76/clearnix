@@ -1,33 +1,49 @@
 #!/bin/bash
 
-# Check if Nix is installed
+# Check if Nix is already installed
 if ! command -v nix &> /dev/null; then
-    echo "Nix is not installed. Please run the installation script from https://nixos.org/nix/install."
-    exit 1
+    echo "Nix is not installed. Running the installation script from https://nixos.org/nix/install..."
+    
+    # Run the Nix installation script
+    curl -L https://nixos.org/nix/install | sh
+    
+    # Check if the Nix profile script exists and source it
+    if [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+        echo "Sourcing the Nix profile..."
+        source ~/.nix-profile/etc/profile.d/nix.sh
+    else
+        echo "Error: Nix profile script not found. Ensure ~/.nix-profile exists and try again."
+        exit 1
+    fi
+else
+    echo "Nix is already installed. Proceeding with configuration..."
 fi
 
-# Source the Nix profile to set up environment variables for the current session
-echo "Sourcing the Nix profile..."
-source ~/.nix-profile/etc/profile.d/nix.sh
+# Ensure the main Nix configuration directory exists
+NIX_CONFIG_DIR=~/.config/nix
+if [ ! -d "$NIX_CONFIG_DIR" ]; then
+    echo "Creating Nix configuration directory at $NIX_CONFIG_DIR"
+    mkdir -p "$NIX_CONFIG_DIR"
+fi
 
-# Add the Nix channels
+# Add Nix channels
 echo "Adding Nix channels..."
 nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs
 nix-channel --update
 
-# Create a configuration directory if it doesn’t already exist
-NIX_CONFIG_DIR=~/.config/nix
-mkdir -p "$NIX_CONFIG_DIR"
-
-# Enable experimental features (optional: flakes and nix-command)
+# Configure Nix for experimental features (nix-command and flakes)
 echo "Configuring Nix to enable experimental features (nix-command and flakes)..."
 cat <<EOF > "$NIX_CONFIG_DIR/nix.conf"
 experimental-features = nix-command flakes
 EOF
 
-# Update the environment to include new paths
+# Reload the environment to include Nix paths
 echo "Updating shell environment..."
-source ~/.nix-profile/etc/profile.d/nix.sh
+if [ -f ~/.nix-profile/etc/profile.d/nix.sh ]; then
+    source ~/.nix-profile/etc/profile.d/nix.sh
+else
+    echo "Warning: Nix profile script not found. You may need to restart your shell to load Nix."
+fi
 
 # Test Nix installation with a sample package installation
 echo "Testing Nix by installing 'hello' package..."
