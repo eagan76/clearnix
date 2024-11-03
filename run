@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Check if Nix is installed
+if ! command -v nix &> /dev/null; then
+    echo "Nix is not installed. Please run the installation script from https://nixos.org/nix/install."
+    exit 1
+fi
+
+# Source the Nix profile to set up environment variables for the current session
+echo "Sourcing the Nix profile..."
+source ~/.nix-profile/etc/profile.d/nix.sh
+
+# Add the Nix channels
+echo "Adding Nix channels..."
+nix-channel --add https://nixos.org/channels/nixpkgs-unstable nixpkgs
+nix-channel --update
+
+# Create a configuration directory if it doesn’t already exist
+NIX_CONFIG_DIR=~/.config/nix
+mkdir -p "$NIX_CONFIG_DIR"
+
+# Enable experimental features (optional: flakes and nix-command)
+echo "Configuring Nix to enable experimental features (nix-command and flakes)..."
+cat <<EOF > "$NIX_CONFIG_DIR/nix.conf"
+experimental-features = nix-command flakes
+EOF
+
+# Update the environment to include new paths
+echo "Updating shell environment..."
+source ~/.nix-profile/etc/profile.d/nix.sh
+
+# Test Nix installation with a sample package installation
+echo "Testing Nix by installing 'hello' package..."
+nix-env -iA nixpkgs.hello
+
+echo "Setup complete. You can now use Nix. The 'hello' package was installed as a test."
+echo "Run 'hello' in the terminal to verify."
