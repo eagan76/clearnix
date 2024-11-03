@@ -1,77 +1,40 @@
 #!/bin/bash
 
-# Function to check if a command exists
-command_exists() {
-    command -v "$1" &> /dev/null
-}
-
-# Step 1: Download the Guix Installer Script
+# Step 1: Download the Guix installer script
 echo "Downloading Guix installer script..."
-if wget -q https://git.savannah.gnu.org/cgit/guix.git/plain/etc/guix-install.sh -O guix-install.sh; then
-    echo "Guix installer script downloaded successfully."
-else
-    echo "Failed to download Guix installer script. Exiting."
-    exit 1
-fi
+wget https://git.savannah.gnu.org/cgit/guix.git/plain/etc/guix-install.sh -O guix-install.sh
+chmod +x guix-install.sh
 
-# Step 2: Run the Installer Script
+# Step 2: Run the installer script
 echo "Running the Guix installer script..."
-if bash guix-install.sh; then
-    echo "Guix installed successfully."
-else
-    echo "Guix installation failed. Attempting to troubleshoot..."
+sudo ./guix-install.sh
 
-    # Basic troubleshooting: check if required directories are missing
-    if [ ! -d "/gnu" ]; then
-        echo "Directory /gnu is missing. Creating it with sudo privileges..."
-        sudo mkdir -p /gnu
-    fi
+# Step 3: Create writable overlay for /gnu/store
+echo "Setting up a writable overlay for /gnu/store..."
+mkdir -p ~/guix-store/upper ~/guix-store/work
+sudo mkdir -p /gnu/store
 
-    if [ ! -d "/var/guix" ]; then
-        echo "Directory /var/guix is missing. Creating it with sudo privileges..."
-        sudo mkdir -p /var/guix
-    fi
+# Mount the overlay for /gnu/store
+sudo mount -t overlay overlay -o lowerdir=/gnu/store,upperdir=~/guix-store/upper,workdir=~/guix-store/work /gnu/store
 
-    echo "Re-running Guix installer..."
-    if ! bash guix-install.sh; then
-        echo "Guix installation failed again. Please check the output above for errors."
-        exit 1
-    fi
-fi
+# Add this overlay mount to /etc/fstab for persistence across reboots
+echo "Making the overlay mount persistent in /etc/fstab..."
+echo "overlay /gnu/store overlay lowerdir=/gnu/store,upperdir=$HOME/guix-store/upper,workdir=$HOME/guix-store/work 0 0" | sudo tee -a /etc/fstab
 
-# Step 3: Add Guix to the PATH
-echo "Configuring environment variables for Guix..."
-SHELL_PROFILE="$HOME/.bashrc"
-echo 'export PATH="$HOME/.config/guix/current/bin:$PATH"' >> "$SHELL_PROFILE"
-source "$SHELL_PROFILE"
+# Step 4: Set up Guix environment variables
+echo "Configuring Guix environment variables..."
 
-# Step 4: Verify the Installation
-echo "Verifying Guix installation..."
-if command_exists guix; then
-    echo "Guix installed and accessible from the PATH."
-else
-    echo "Guix command not found in PATH. Attempting alternative setup..."
+# Add Guix to PATH and source the profile script
+echo 'export PATH="$HOME/.config/guix/current/bin:$PATH"' >> ~/.bashrc
+echo 'source "$HOME/.guix-profile/etc/profile"' >> ~/.bashrc
+source ~/.bashrc
 
-    # Add the Guix profile directly to PATH if it wasn't picked up
-    export PATH="$HOME/.config/guix/current/bin:$PATH"
-    echo 'export PATH="$HOME/.config/guix/current/bin:$PATH"' >> "$SHELL_PROFILE"
-fi
+# Step 5: Start the Guix daemon (if required)
+echo "Starting the Guix daemon..."
+sudo guix-daemon --build-users-group=guixbuild
 
-# Step 5: Test Guix by Installing a Sample Package
-echo "Testing Guix by installing the 'hello' package..."
-if guix install hello -q; then
-    echo "'hello' package installed successfully. Testing 'hello' command..."
-    if hello &> /dev/null; then
-        echo "Guix is set up correctly. Installation and setup were successful."
-    else
-        echo "'hello' package installation succeeded, but 'hello' command did not run. Please check Guix setup."
-    fi
-else
-    echo "Failed to install 'hello' package with Guix. Please check Guix setup."
-fi
+# Step 6: Run `guix pull` to update Guix
+echo "Running guix pull to update Guix..."
+guix pull
 
-# Clean up installer script
-echo "Cleaning up..."
-rm -f guix-install.sh
-
-echo "Setup complete."
+echo "Installation and configuration complete. Guix is now set up on Clear Linux with a writable overlay for /gnu/store."
